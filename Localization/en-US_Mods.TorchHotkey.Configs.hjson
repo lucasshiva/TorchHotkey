@@ -1,0 +1,14 @@
+TorchHotkeyConfig: {
+	EnableSmartPlacementToggle: {
+		Label: Enable Smart Placement
+		Tooltip: If enabled, check nearby tiles if tile under cursor is invalid
+	}
+
+	SmartPlacementRadius: {
+		Label: Smart placement radius
+		Tooltip: How many tiles away from the cursor to search for a valid torch placement
+	}
+
+	Headers.SmartPlacement: Smart Placement
+	DisplayName: Torch Hotkey Config
+}

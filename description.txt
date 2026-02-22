@@ -1,0 +1,7 @@
+Adds a configurable hotkey to place torches under your cursor.
+- Supports smart cursor
+- If tile under cursor isn't valid, search for nearby tiles (configurable).
+- Compatible with the Slayer's Sack from Vacuum Bags.
+
+Icon from limayer28 on Pixilart.
+Source code: https://github.com/lucasshiva/TorchHotkey
