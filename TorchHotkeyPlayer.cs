@@ -35,8 +35,10 @@ public class TorchHotkeyPlayer : ModPlayer
     {
         if (Main.SmartCursorIsUsed)
         {
-            TryPlaceTorchAt(torch, Main.SmartCursorX, Main.SmartCursorY);
-            return;
+            // If this fails, we move on to check for additional tiles.
+            // This way, we can place torches while holding a tool with smart cursor enabled.
+            if (TryPlaceTorchAt(torch, Main.SmartCursorX, Main.SmartCursorY))
+                return;
         }
 
         (int mouseI, int mouseJ) = Main.MouseWorld.ToTileCoordinates();
@@ -79,7 +81,13 @@ public class TorchHotkeyPlayer : ModPlayer
 
         // Only attempt placement on empty tiles
         if (tile.HasTile)
-            return false;
+        {
+            // Allow cuttable tiles (grass, vines, etc.)
+            if (!Main.tileCut[tile.TileType])
+                return false;
+
+            WorldGen.KillTile(i, j, noItem: true);
+        }
 
         var before = (tile.TileType, tile.WallType, tile.HasTile);
 
@@ -87,8 +95,11 @@ public class TorchHotkeyPlayer : ModPlayer
             return false;
 
         // NOTE: I think this only applies to the player's inventory, so it won't work for modded bags.
+        // We might not even need this.
         Player.ItemCheck();
 
+        // I don't remember why we do this check, but it's also done in `HelpfulHotkeys` mod.
+        // If I'm not mistaken, it doesn't show an animation if no torches have been placed.
         var after = (tile.TileType, tile.WallType, tile.HasTile);
         if (before == after)
             return false;
