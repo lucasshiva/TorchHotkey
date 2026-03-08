@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using JetBrains.Annotations;
 using Microsoft.Xna.Framework;
 using Terraria;
-using Terraria.DataStructures;
 using Terraria.GameInput;
 using Terraria.ID;
 using Terraria.ModLoader;
@@ -33,26 +33,34 @@ public class TorchHotkeyPlayer : ModPlayer
 
     private void SmartPlaceTorch(Item torch)
     {
-        if (Main.SmartCursorIsUsed)
+        var config = ModContent.GetInstance<TorchHotkeyConfig>();
+
+        if (Main.SmartCursorShowing)
         {
             // If this fails, we move on to check for additional tiles.
             // This way, we can place torches while holding a tool with smart cursor enabled.
+            //
+            // We're assuming this is within the player's interaction range.
             if (TryPlaceTorchAt(torch, Main.SmartCursorX, Main.SmartCursorY))
                 return;
         }
 
         (int mouseI, int mouseJ) = Main.MouseWorld.ToTileCoordinates();
 
+        // Too far to place a torch at, don't even try.
+        if (!IsTileInRange(mouseI, mouseJ))
+            return;
+
         if (TryPlaceTorchAt(torch, mouseI, mouseJ))
             return;
 
-        var config = ModContent.GetInstance<TorchHotkeyConfig>();
+        // Since we couldn't place a torch under cursor, we try adjacent tiles if enabled.
         if (!config.EnableSmartPlacementToggle)
             return;
 
         int radius = config.SmartPlacementRadius;
-
         List<(float dist, Point p)> candidates = [];
+
         for (int i = mouseI - radius; i <= mouseI + radius; i++)
         {
             for (int j = mouseJ - radius; j <= mouseJ + radius; j++)
@@ -67,41 +75,38 @@ public class TorchHotkeyPlayer : ModPlayer
 
         foreach (var (_, p) in candidates)
         {
+            // Enforce that we don't extend beyond the player's reach, even for adjacent tiles.
+            if (!IsTileInRange(p.X, p.Y))
+                continue;
+
             if (TryPlaceTorchAt(torch, p.X, p.Y))
                 return;
         }
     }
 
-    private bool TryPlaceTorchAt(Item torch, int i, int j)
+    private static bool TryPlaceTorchAt(Item torch, int i, int j)
     {
         if (!WorldGen.InWorld(i, j))
             return false;
 
-        Tile tile = Main.tile[i, j];
+        Tile targetTile = Main.tile[i, j];
 
-        // Only attempt placement on empty tiles
-        if (tile.HasTile)
+        if (targetTile.HasTile)
         {
             // Allow cuttable tiles (grass, vines, etc.)
-            if (!Main.tileCut[tile.TileType])
+            if (!Main.tileCut[targetTile.TileType])
                 return false;
 
             WorldGen.KillTile(i, j, noItem: true);
         }
 
-        var before = (tile.TileType, tile.WallType, tile.HasTile);
-
-        if (!WorldGen.PlaceTile(i, j, torch.createTile, style: torch.placeStyle))
+        // Saw this on Terraria's decompiled source code, might be useful.
+        if (!TileLoader.CanPlace(i, j, TileID.Torches))
             return false;
 
-        // NOTE: I think this only applies to the player's inventory, so it won't work for modded bags.
-        // We might not even need this.
-        Player.ItemCheck();
-
-        // I don't remember why we do this check, but it's also done in `HelpfulHotkeys` mod.
-        // If I'm not mistaken, it doesn't show an animation if no torches have been placed.
-        var after = (tile.TileType, tile.WallType, tile.HasTile);
-        if (before == after)
+        // `PlaceTile` doesn't respect player's reach, so we need additional checks elsewhere.
+        WorldGen.PlaceTile(i, j, torch.createTile, style: torch.placeStyle);
+        if (Main.tile[i, j].TileType != TileID.Torches)
             return false;
 
         if (Main.netMode == NetmodeID.MultiplayerClient)
@@ -118,16 +123,7 @@ public class TorchHotkeyPlayer : ModPlayer
     private Item FindTorch()
     {
         Item sackTorch = TryFindTorchInSlayersSack();
-        if (sackTorch != null)
-            return sackTorch;
-
-        foreach (Item item in Player.inventory)
-        {
-            if (IsTorch(item))
-                return item;
-        }
-
-        return null;
+        return sackTorch ?? Player.inventory.FirstOrDefault(IsTorch);
     }
 
     [CanBeNull]
@@ -162,5 +158,16 @@ public class TorchHotkeyPlayer : ModPlayer
         return item.stack > 0
             && item.createTile >= TileID.Torches
             && TileID.Sets.Torch[item.createTile];
+    }
+
+    private bool IsTileInRange(int i, int j)
+    {
+        var px = (int)(Player.Center.X / 16f);
+        var py = (int)(Player.Center.Y / 16f);
+
+        int dx = Math.Abs(i - px);
+        int dy = Math.Abs(j - py);
+
+        return dx <= Player.tileRangeX && dy <= Player.tileRangeY;
     }
 }

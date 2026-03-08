@@ -6,7 +6,7 @@ TorchHotkeyConfig: {
 
 	SmartPlacementRadius: {
 		Label: Smart placement radius
-		Tooltip: How many tiles away from the cursor to search for a valid torch placement
+		Tooltip: How many adjacent tiles to scan for a valid torch placement
 	}
 
 	Headers.SmartPlacement: Smart Placement
